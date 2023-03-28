@@ -19,7 +19,7 @@
 | www.google.com/ | 71 | 3297 | requests_html_results/google.txt
 | www.crawler-test.com/  | 180 | 640 | requests_html_results/crawler-test.txt
 | www.stackoverflow.com/  | 66 | 728 | requests_html_results/stackoverflow.txt
-| www.www.vk.com/  | 116 | 1106 | requests_html_results/stackoverflow.txt
+| www.vk.com/  | 116 | 1106 | requests_html_results/vk.txt
 
 #
 Не удалось создать карту сайта для dzen.com так как сайт блокирует get запросы.
@@ -31,5 +31,5 @@
 | URL сайта | Время обработки | Кол-во найденных ссылок | Имя файла с результатом |
 | ------ | ------ | ------ | ------ |
 | www.google.com/ | 65 | 2084 | urllib_results/google.txt
-| www.crawler-test.com/  | 111 | 399 | urllib_results/google.txt
-| www.stackoverflow.com/  | 26 | 134 | urllib_results/google.txt
+| www.crawler-test.com/  | 111 | 399 | urllib_results/crawler-test.txt
+| www.stackoverflow.com/  | 26 | 134 | urllib_results/stackoverflow.txt
