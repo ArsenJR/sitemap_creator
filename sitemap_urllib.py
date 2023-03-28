@@ -74,6 +74,11 @@ def links_poces(links_list: list):
     return urls_with_same_domain, urls_with_another_domain
 
 def get_urls_on_page(url: str):
+
+    """
+    :param url: url адрес
+    :return: возвращает список ссылок, найденных на странице
+    """
     global all_urls
     global urls_relation
 
@@ -117,6 +122,10 @@ def get_urls_on_page(url: str):
     return urls_with_same_domain
 
 def do_sitemap(url: str):
+    """
+    Сканирует веб-страницу и извлекает все ссылки.
+    Ссылки можно найти в переменной 'all_urls'
+    """
     global depth
     global all_urls
 
@@ -131,7 +140,7 @@ def do_sitemap(url: str):
             # url уже рассматривался
             continue
 
-        if depth > 1000:
+        if depth > 1000: # максимальное количество страниц для сканирования
             # привешение лимита
             return
         depth += 1
