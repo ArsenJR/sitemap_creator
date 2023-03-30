@@ -6,26 +6,12 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse, urljoin
 from urllib.request import urlopen
 
-from update_data import add_sitemap_creations, add_sitemaps_links_urllib
+from update_data import add_sitemaps_link_urllib, get_all_link_by_proc_id
 
-
-
-HOMEPAGE_URL = 'https://www.vk.com/'
-HOMEPAGE_URL_v2 = 'https://vk.com/'
-#HOMEPAGE_URL = 'http://www.crawler-test.com/'
-DOMEN_NAME_1 = urlparse(HOMEPAGE_URL).netloc
-DOMEN_NAME_2 = urlparse(HOMEPAGE_URL_v2).netloc
-DOMEN_ZONE = DOMEN_NAME_1.split('.')[2]
 
 DEFAULT_COUNT_THREADS = len(threading.enumerate())
 
-all_urls = set()
-all_urls.clear()
-#all_urls.add(HOMEPAGE_URL)
-urls_relation = {}
 
-global depth
-depth = 0
 
 
 class LinkParser(HTMLParser):
@@ -49,7 +35,7 @@ class LinkParser(HTMLParser):
         return self.__link_list
 
 
-def links_poces(links_list: list):
+def links_proces(links_list: list, homepage, domen_name_1, domen_name_2, domen_zone):
 
     """
     :param links_list: список url-адресов, найденных на сайте
@@ -60,27 +46,26 @@ def links_poces(links_list: list):
 
     for link in links_list:
 
-        link = urljoin(HOMEPAGE_URL, link)
+        link = urljoin(homepage, link)
         parse_link = urlparse(link)
-        netloc = parse_link.netloc.replace('.ru', f'.{DOMEN_ZONE}').replace('.com', f'.{DOMEN_ZONE}')
+        netloc = parse_link.netloc.replace('.ru', f'.{domen_zone}').replace('.com', f'.{domen_zone}')
         full_link = 'https://' + netloc + parse_link.path
 
         netloc = urlparse(full_link).netloc
-        if netloc == DOMEN_NAME_2 or netloc == DOMEN_NAME_1:
+
+        if netloc == domen_name_1 or netloc == domen_name_2:
             urls_with_same_domain.add(full_link)
         else:
             urls_with_another_domain.add(full_link)
 
     return urls_with_same_domain, urls_with_another_domain
 
-def get_urls_on_page(url: str):
+def get_urls_on_page(url: str, homepage, domen_name_1, domen_name_2, domen_zone, proc_id, table_name, all_links):
 
     """
     :param url: url адрес
     :return: возвращает список ссылок, найденных на странице
     """
-    global all_urls
-    global urls_relation
 
     if url.endswith('/'):
         url = url[:-1]
@@ -93,16 +78,17 @@ def get_urls_on_page(url: str):
         return
 
     parse_true_link = urlparse(true_full_link)
-    netloc = parse_true_link.netloc.replace('.ru', f'.{DOMEN_ZONE}').replace('.com', f'.{DOMEN_ZONE}')
-    if netloc != DOMEN_NAME_2 and netloc != DOMEN_NAME_1:
+    netloc = parse_true_link.netloc.replace('.ru', f'.{domen_zone}').replace('.com', f'.{domen_zone}')
+    if netloc != domen_name_1 and netloc != domen_name_2:
         # url с другим доменом
-        all_urls.add(true_full_link)
+        add_sitemaps_link_urllib((proc_id, homepage, url, true_full_link))
         return
 
-    if true_full_link in all_urls:
+    if true_full_link in all_links:
         # уже искал по данному url
         return
-    all_urls.add(true_full_link)
+
+    add_sitemaps_link_urllib((proc_id, homepage, url, true_full_link))
 
     try:
         html_decoded_body = html_body.decode("utf-8")
@@ -112,39 +98,41 @@ def get_urls_on_page(url: str):
     LinkSearcher = LinkParser()
     LinkSearcher.feed(html_decoded_body)
 
-    urls_with_same_domain, urls_with_another_domain = links_poces(LinkSearcher.get_link_list())
-    urls_relation[url] = urls_with_same_domain.union(urls_with_another_domain)
+    urls_with_same_domain, urls_with_another_domain = links_proces(LinkSearcher.get_link_list(), homepage, domen_name_1, domen_name_2, domen_zone)
 
     for founded_url in urls_with_another_domain:
         # сохраняю url с другим доменом
-        all_urls.add(founded_url)
+        add_sitemaps_link_urllib((proc_id, homepage, url, founded_url))
 
     return urls_with_same_domain
 
-def do_sitemap(url: str):
+def do_sitemap_urllib(url: str, domen_name_1, domen_name_2, domen_zone, proc_id, table_name, depth = 0, homepage=None):
     """
     Сканирует веб-страницу и извлекает все ссылки.
-    Ссылки можно найти в переменной 'all_urls'
     """
-    global depth
-    global all_urls
+    if not homepage:
+        homepage = url
+        add_sitemaps_link_urllib((proc_id, homepage, homepage, homepage))
 
-    urls_with_same_domain = get_urls_on_page(url)
+    all_links = get_all_link_by_proc_id(proc_id, table_name)
+    urls_with_same_domain = get_urls_on_page(url, homepage, domen_name_1, domen_name_2, domen_zone, proc_id, table_name, all_links)
+
 
     if not urls_with_same_domain:
         # подходящих url не найдено на странице
         return
 
     for founded_url in urls_with_same_domain:
-        if founded_url in all_urls:
+        if founded_url in all_links:
             # url уже рассматривался
             continue
 
-        if depth > 1000: # максимальное количество страниц для сканирования
+        if depth > 60: # максимальня глкбина ветки
             # привешение лимита
             return
         depth += 1
-        thread = threading.Thread(target=do_sitemap, args=(founded_url, ))
+        print(depth)
+        thread = threading.Thread(target=do_sitemap_urllib, args=(founded_url, domen_name_1, domen_name_2, domen_zone, proc_id, table_name, depth, homepage, ))
         thread.start()
     return
 
@@ -152,7 +140,14 @@ def do_sitemap(url: str):
 if __name__ == "__main__":
 
     start = time.time()
-    do_sitemap(HOMEPAGE_URL)
+    homepage = 'https://www.google.com'
+    domen_name_1 = urlparse(homepage).netloc
+    domen_name_2 = domen_name_1.replace('www.', '')
+    domen_zone = domen_name_1.split('.')[2]
+    proc_id = 6
+    table_name = 'sitemaps_links_urllib'
+    do_sitemap_urllib(homepage, domen_name_1, domen_name_2, domen_zone, proc_id, table_name)
+
 
     print('Слежу за потоками:')
 
@@ -162,27 +157,15 @@ if __name__ == "__main__":
 
     print('Потоков стандартное количество')
     end = time.time() - start
+    proc_id = 6
+    table_name = 'sitemaps_links_urllib'
+    all_urls = get_all_link_by_proc_id(proc_id, table_name)
 
     print()
     print('Отчет')
-    print(f'URL: {HOMEPAGE_URL}')
+    print(f'URL: {homepage}')
     print(f'Время обработки: {int(end)} сек')
     print(f'Количество найденных ссылок: {len(all_urls)} ')
 
-    f = open(r'urllib_results/vk.txt', 'w', encoding="utf-8")
-    f.write(f'ОТЧЕТ \n \n')
-    f.write(f'URL: {HOMEPAGE_URL} \n')
-    f.write(f'Время обработки: {int(end)} \n')
-    f.write(f'Количество найденных ссылок: {len(all_urls)} \n \n \n ')
-    f.write(f'Список ссылок: \n {all_urls} \n \n \n ')
-    f.write(f'Зависимости: \n {urls_relation} \n \n \n ')
-    f.close()
 
-    results = (HOMEPAGE_URL, 'urllib', len(all_urls), int(end))
-    add_sitemap_creations(results)
 
-    site_nodes = []
-    for parent_url in urls_relation:
-        for url in urls_relation[parent_url]:
-            site_nodes.append((HOMEPAGE_URL, parent_url, url))
-    add_sitemaps_links_urllib(site_nodes)
